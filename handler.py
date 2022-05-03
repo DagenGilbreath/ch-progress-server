@@ -1,4 +1,3 @@
-import socketserver
 import sys
 import sys
 import websockets
