@@ -4,16 +4,44 @@ import websockets
 import asyncio
 import time
 from concurrent.futures import TimeoutError as ConnectionTimeoutError
+import socketserver
+import threading
+
+sessions = {}
+
+class MyTCPRequestHandler(socketserver.StreamRequestHandler):
+    def handle(self):
+        print("Recieved one request from {}".format(self.client_address[0]))
+        msg = self.rfile.readline().strip().decode()
+        print("Data Recieved from client is: {}".format(msg))
+        sessions[msg.split(';')[2]] = msg
+
+def run_socket_server():
+        aServer = socketserver.TCPServer(('0.0.0.0', 8080), MyTCPRequestHandler)
+        # Listen forever
+        aServer.serve_forever()
 
 async def produce(message: str, host: str, port: int) -> None:
     async with websockets.connect(f"ws://{host}:{port}/ws/status/") as ws:
         await ws.send(message)
+        
+        x = threading.Thread(target=run_socket_server)
+        x.start()
+
         while(True):
             try:
-                await asyncio.wait_for(ws.send('poll'), timeout=3)
-                data = await asyncio.wait_for(ws.recv(), timeout=3)
-                print(data)
-                time.sleep(1)
+                await asyncio.wait_for(ws.send('poll'), timeout=0.5)
+                data = await asyncio.wait_for(ws.recv(), timeout=0.5)
+                # If csrf token not present in sesssions, create it
+                if(data.replace('"', '') not in sessions and len(data) > 15):
+                    sessions[data.replace('"', '')] = '5;Connected to Progress Server;{}'.format(data.replace('"', ''))
+                # If a csrf token, send back progress (sessions[token])
+                if(len(data) > 15):
+                    print(data)
+                    await asyncio.wait_for(ws.send(sessions[data.replace('"', '')]), timeout=0.5)
+                    response = await asyncio.wait_for(ws.recv(), timeout=0.5)
+                    print('Response: {}'.format(response))
+                time.sleep(0.05)
             except Exception as e:
                 print('Timed out. Trying again...')
 
