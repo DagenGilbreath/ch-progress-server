@@ -55,4 +55,8 @@ if __name__ == "__main__":
             port = int(arg)
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(produce(message = 'connected to progress server', host = ip, port = port))
+    while True:
+        try:
+            loop.run_until_complete(produce(message = 'connected to progress server', host = ip, port = port))
+        except Exception as e:
+            print("Failed to connect to website")
